@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>スーパーお得ラッシュ！</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#2a1800;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;}
+#wrap{position:relative;width:400px;height:700px;overflow:hidden;border:3px solid #c8a055;box-shadow:0 0 30px rgba(200,160,85,0.5);image-rendering:pixelated;}
+canvas{display:block;width:400px;height:700px;}
+
+/* HUD */
+#hud{position:absolute;top:0;left:0;right:0;height:52px;background:rgba(255,248,230,0.97);border-bottom:3px solid #c8a055;display:flex;align-items:center;justify-content:space-between;padding:0 10px;z-index:20;font-family:‘DotGothic16’,monospace;transition:background 0.3s;}
+#hud.panic{background:rgba(255,80,80,0.97);border-bottom-color:#cc0000;animation:hudPanic 0.3s infinite alternate;}
+@keyframes hudPanic{to{background:rgba(255,180,0,0.97);}}
+.hud-saving{font-size:11px;color:#333;line-height:1.5;}
+.hud-saving b{color:#e00;font-size:15px;font-family:‘Press Start 2P’,monospace;}
+.hud-basket{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.basket-label{font-size:9px;color:#666;font-family:‘Press Start 2P’,monospace;}
+.basket-bar{width:76px;height:11px;background:#ddd;border:2px solid #aaa;overflow:hidden;}
+.basket-fill{height:100%;background:linear-gradient(90deg,#66bb44,#ffcc00);transition:width 0.12s;}
+.basket-fill.full{background:linear-gradient(90deg,#ff4444,#ff8800);animation:pulse 0.3s infinite alternate;}
+@keyframes pulse{to{opacity:0.6;}}
+.basket-count{font-size:8px;color:#444;font-family:‘Press Start 2P’,monospace;}
+.hud-timer{font-family:‘Press Start 2P’,monospace;font-size:10px;color:#333;text-align:center;line-height:1.6;}
+.hud-timer.urgent{color:#fff;animation:timerPanic 0.25s infinite alternate;}
+@keyframes timerPanic{to{transform:scale(1.3);color:#ffee00;}}
+
+/* BONUS BANNER */
+#bonusBanner{
+position:absolute;top:52px;left:0;right:0;height:0;overflow:hidden;
+background:linear-gradient(90deg,#ff2244,#ff8800,#ffee00,#ff8800,#ff2244);
+background-size:200% 100%;
+display:flex;align-items:center;justify-content:center;
+z-index:18;transition:height 0.3s;
+animation:bonusGrad 1s linear infinite;
+}
+#bonusBanner.show{height:28px;}
+@keyframes bonusGrad{to{background-position:200% 0;}}
+#bonusBanner span{font-family:‘Press Start 2P’,monospace;font-size:9px;color:#fff;text-shadow:2px 2px 0 #880000;white-space:nowrap;animation:bonusTxt 0.2s infinite alternate;}
+@keyframes bonusTxt{to{transform:scale(1.05);}}
+
+/* EFFECTS */
+.eff{position:absolute;pointer-events:none;z-index:30;font-family:‘Press Start 2P’,monospace;white-space:nowrap;animation:effUp 0.9s ease-out forwards;}
+@keyframes effUp{0%{transform:translateY(0) scale(0.5);opacity:1;}40%{transform:translateY(-36px) scale(1.3);opacity:1;}100%{transform:translateY(-72px) scale(0.9);opacity:0;}}
+.eff-big{font-size:15px;color:#ffe600;text-shadow:3px 3px 0 #cc0000,-1px -1px 0 #fff;}
+.eff-ok{font-size:10px;color:#00cc44;text-shadow:2px 2px 0 #005522;}
+.eff-miss{font-size:10px;color:#cc4400;text-shadow:2px 2px 0 #330000;}
+.eff-bonus{font-size:13px;color:#ffee00;text-shadow:3px 3px 0 #cc4400,-1px -1px 0 #fff;animation:effUp 1.1s ease-out forwards;}
+
+/* CHECKOUT FLASH */
+#coFlash{position:absolute;inset:0;pointer-events:none;z-index:35;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;}
+#coFlash.go{animation:coAnim 1.6s ease-out forwards;}
+@keyframes coAnim{0%{opacity:0}8%{opacity:1}75%{opacity:1}100%{opacity:0}}
+.co-bg{position:absolute;inset:0;background:radial-gradient(circle,rgba(255,230,0,.7) 0%,rgba(255,60,100,.4) 50%,transparent 75%);animation:coBgA 1.6s ease-out forwards;}
+@keyframes coBgA{0%{transform:scale(0)}25%{transform:scale(1.6)}100%{transform:scale(2.2);opacity:0}}
+.co-txt{position:relative;font-family:‘Press Start 2P’,monospace;font-size:18px;color:#ffe600;text-shadow:4px 4px 0 #cc0000,-2px -2px 0 #fff;text-align:center;line-height:1.7;animation:coTxtA 1.6s ease-out forwards;}
+@keyframes coTxtA{0%{transform:scale(0) rotate(-8deg)}15%{transform:scale(1.25) rotate(2deg)}25%{transform:scale(1) rotate(0)}80%{opacity:1}100%{opacity:0;transform:scale(1.1)}}
+
+/* PARTICLES */
+.pt{position:absolute;pointer-events:none;z-index:28;image-rendering:pixelated;animation:ptFly var(–d) ease-out forwards;}
+@keyframes ptFly{0%{transform:translate(0,0);opacity:1}100%{transform:translate(var(–tx),var(–ty));opacity:0}}
+
+/* TITLE */
+#titleScreen{position:absolute;inset:0;z-index:50;background:linear-gradient(180deg,#fffde0 0%,#d4f0b0 60%,#a8d888 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+.t-logo{font-family:‘Press Start 2P’,monospace;font-size:19px;color:#cc2244;text-shadow:3px 3px 0 #880011;text-align:center;line-height:1.7;animation:tPulse 0.9s infinite alternate;}
+@keyframes tPulse{to{transform:scale(1.04);}}
+.t-btn{font-family:‘Press Start 2P’,monospace;font-size:11px;background:#ee3355;color:#fff;border:none;padding:14px 26px;box-shadow:4px 4px 0 #880011;cursor:pointer;animation:btnB 0.5s infinite alternate;}
+@keyframes btnB{to{transform:translateY(-3px);box-shadow:4px 7px 0 #880011;}}
+.t-btn:active{transform:translate(4px,4px);box-shadow:0 0 0 #880011;}
+.t-hint{font-size:9px;color:#555;font-family:‘DotGothic16’,monospace;text-align:center;line-height:2.1;}
+
+/* GAME OVER */
+#goScreen{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.go-ttl{font-family:‘Press Start 2P’,monospace;font-size:16px;color:#ffe600;text-shadow:3px 3px 0 #cc4400;}
+.go-score{font-family:‘Press Start 2P’,monospace;font-size:9px;color:#fff;text-align:center;line-height:2.2;}
+
+/* MARQUEE */
+#mqBar{position:absolute;bottom:0;left:0;right:0;height:20px;background:#ee3355;z-index:19;overflow:hidden;transition:background 0.3s;}
+#mqBar.panic{background:#ff8800;animation:mqPanic 0.4s infinite alternate;}
+@keyframes mqPanic{to{background:#ffee00;}}
+#mqTxt{font-family:‘Press Start 2P’,monospace;font-size:8px;color:#fff;white-space:nowrap;display:inline-block;padding-top:5px;animation:mqScroll 14s linear infinite;}
+#mqTxt.fast{animation:mqScroll 5s linear infinite;}
+@keyframes mqScroll{from{transform:translateX(400px);}to{transform:translateX(-100%);}}
+
+/* SCREEN FLASH for panic start */
+#screenFlash{position:absolute;inset:0;pointer-events:none;z-index:40;background:rgba(255,50,50,0);transition:background 0.1s;}
+#screenFlash.flash{background:rgba(255,50,50,0.5);}
+</style>
+
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="400" height="700"></canvas>
+  <div id="hud">
+    <div class="hud-saving">節約額<br><b id="hdSave">¥0</b></div>
+    <div class="hud-basket">
+      <div class="basket-label">カゴ</div>
+      <div class="basket-bar"><div class="basket-fill" id="bFill" style="width:0%"></div></div>
+      <div class="basket-count" id="bCnt">0/8</div>
+    </div>
+    <div class="hud-timer" id="hdTime">TIME<br>90</div>
+  </div>
+  <div id="bonusBanner"><span>🎉 品出しボーナスタイム！ 🎉 急いでGET！ 🎉</span></div>
+  <div id="coFlash"><div class="co-bg"></div><div class="co-txt" id="coTxt">精算！<br>¥800お得！</div></div>
+  <div id="screenFlash"></div>
+  <div id="titleScreen">
+    <div class="t-logo">🛒 スーパー<br>お得ラッシュ！</div>
+    <div style="font-size:10px;color:#444;font-family:'DotGothic16',monospace;text-align:center;line-height:1.9;">
+      割引シールの商品をカゴへ！<br>カゴ満杯になったらレジへ急げ！<br>残り10秒は品出しボーナスタイム！
+    </div>
+    <button class="t-btn" id="startBtn">▶ スタート！</button>
+    <div class="t-hint">指でなぞってキャラ移動<br>割引シール商品に近づくと自動GET！<br>店員さんが品出ししてくれるよ<br>キャラぶつかり注意！</div>
+  </div>
+  <div id="goScreen">
+    <div class="go-ttl">おかいもの終了！</div>
+    <div class="go-score" id="goTxt"></div>
+    <button class="t-btn" id="retryBtn">▶ もう一度！</button>
+  </div>
+  <div id="mqBar"><div id="mqTxt">★ 本日のタイムセール開催中！★ 割引シールをGETせよ！★ 買い物客に負けるな！★ 店員さんが品出し中！★</div></div>
+</div>
+
+<script>
+// =====================================================================
+// AUDIO ENGINE
+// =====================================================================
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+
+function beep(f,t,d,v=0.3,dl=0){
+  try{
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.connect(g); g.connect(AC.destination);
+    o.type=t; o.frequency.setValueAtTime(f, AC.currentTime+dl);
+    g.gain.setValueAtTime(v, AC.currentTime+dl);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+dl+d);
+    o.start(AC.currentTime+dl); o.stop(AC.currentTime+dl+d);
+  }catch(e){}
+}
+
+function sndPickup(){ beep(880,'square',0.06,0.4); beep(1320,'square',0.06,0.3,0.06); beep(1760,'square',0.08,0.2,0.12); }
+function sndDiscount(){ [440,554,659,880].forEach((f,i)=>beep(f,'square',0.07,0.45,i*0.055)); }
+function sndCheckout(){
+  [523,659,784,1047,1319,1568].forEach((f,i)=>{ beep(f,'square',0.13,0.5,i*0.065); beep(f*1.5,'triangle',0.07,0.2,i*0.065+0.035); });
+  for(let i=0;i<10;i++) beep(150+Math.random()*500,'sawtooth',0.05,0.28,0.42+i*0.04);
+}
+function sndMiss(){ beep(220,'sawtooth',0.1,0.3); beep(160,'sawtooth',0.1,0.2,0.09); }
+function sndBump(){ beep(120,'square',0.08,0.4); beep(200,'square',0.06,0.3,0.06); }
+function sndRestock(){ [330,440,523].forEach((f,i)=>beep(f,'triangle',0.1,0.3,i*0.07)); }
+function sndBonusRestock(){
+  // Extra bright restock sound for bonus time
+  [440,554,659,880,1047].forEach((f,i)=>beep(f,'square',0.08,0.5,i*0.04));
+}
+
+// Panic BGM: urgent looping melody played via scheduled oscillators
+let panicBGMNode = null;
+let panicBGMRunning = false;
+const PANIC_MELODY_FAST  = [880,1046,1175,1319,1175,1046,880,784];
+const PANIC_MELODY_NOTES = [...PANIC_MELODY_FAST, ...PANIC_MELODY_FAST.map(f=>f*1.5)];
+let panicBGMIntervalId = null;
+let panicNoteIdx = 0;
+let panicTempo = 0.11; // seconds per note, will get faster
+
+function startPanicBGM(){
+  if(panicBGMRunning) return;
+  panicBGMRunning = true;
+  panicNoteIdx = 0;
+  panicTempo = 0.11;
+  // Announcement chord stab
+  [523,659,784,1047].forEach((f,i)=>{ beep(f,'square',0.25,0.5,i*0.02); beep(f*2,'triangle',0.15,0.2,0.1+i*0.02); });
+  // Voice-like announcement sweep
+  for(let i=0;i<8;i++){
+    beep(300+i*80,'sawtooth',0.06,0.4,0.4+i*0.06);
+  }
+  panicBGMIntervalId = setInterval(()=>{
+    if(!panicBGMRunning){ clearInterval(panicBGMIntervalId); return; }
+    const f = PANIC_MELODY_NOTES[panicNoteIdx % PANIC_MELODY_NOTES.length];
+    beep(f,'square',panicTempo*0.8,0.4);
+    beep(f*0.5,'triangle',panicTempo*0.6,0.15);
+    panicNoteIdx++;
+    // Accelerate gradually
+    panicTempo = Math.max(0.055, panicTempo - 0.003);
+  }, panicTempo * 1000);
+}
+
+function stopPanicBGM(){
+  panicBGMRunning = false;
+  if(panicBGMIntervalId){ clearInterval(panicBGMIntervalId); panicBGMIntervalId=null; }
+}
+
+// =====================================================================
+// CANVAS / LAYOUT
+// =====================================================================
+const wrap = document.getElementById('wrap');
+const cv   = document.getElementById('c');
+const ctx  = cv.getContext('2d');
+const W=400, H=700, HUD_H=52, MQ_H=20;
+const PLAY_TOP=HUD_H, PLAY_BOT=H-MQ_H, PLAY_H=PLAY_BOT-PLAY_TOP; // 628px
+
+// 7 shelf rows  (5 original + 2 added)
+// They must fit in PLAY_H=628. Each row unit ~80px. 7*80=560, leave room for ceiling+floor.
+const SHELF_ROWS=[
+  PLAY_TOP+60,
+  PLAY_TOP+140,
+  PLAY_TOP+220,
+  PLAY_TOP+300,
+  PLAY_TOP+380,
+  PLAY_TOP+460,
+  PLAY_TOP+540,
+];
+const SHELF_L=28, SHELF_W=W-56;
+const REG_X=W-68, REG_Y=PLAY_BOT-58;
+
+// =====================================================================
+// PRODUCTS
+// =====================================================================
+const PRODS=[
+  {emoji:'🍺',name:'ビール',price:498},{emoji:'🍫',name:'チョコ',price:298},
+  {emoji:'🥤',name:'コーラ',price:198},{emoji:'🍜',name:'ラーメン',price:398},
+  {emoji:'🧃',name:'ジュース',price:178},{emoji:'🍱',name:'お弁当',price:598},
+  {emoji:'🧀',name:'チーズ',price:248},{emoji:'🍕',name:'ピザ',price:798},
+  {emoji:'🥛',name:'牛乳',price:168},{emoji:'🍙',name:'おにぎり',price:128},
+  {emoji:'🥚',name:'たまご',price:218},{emoji:'🍞',name:'パン',price:148},
+  {emoji:'🍣',name:'お寿司',price:698},{emoji:'🧆',name:'コロッケ',price:148},
+];
+
+let items=[], itemId=0;
+
+function placeRow(rowY){
+  const slots=5;
+  const spacing=(SHELF_W-20)/slots;
+  for(let i=0;i<slots;i++){
+    items.push({
+      id:itemId++,
+      prod:PRODS[~~(Math.random()*PRODS.length)],
+      x:SHELF_L+10+i*spacing+spacing/2,
+      y:rowY-24,
+      discount:false, pct:0, timer:0, grabbed:false
+    });
+  }
+}
+function initItems(){ items=[]; SHELF_ROWS.forEach(r=>placeRow(r)); }
+
+// =====================================================================
+// HELPERS
+// =====================================================================
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function dist2(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function shuffle(a){ const r=[...a]; for(let i=r.length-1;i>0;i--){ const j=~~(Math.random()*(i+1)); [r[i],r[j]]=[r[j],r[i]]; } return r; }
+
+// =====================================================================
+// GAME STATE
+// =====================================================================
+const PL={x:60,y:PLAY_TOP+PLAY_H/2,w:28,h:44,basket:[],maxBasket:8,wf:0,wt:0,bt:0};
+let shoppers=[], clerk=null;
+let gameState='title', totalSave=0, checkouts=0, gameTime=90, lastTS=0;
+let discountTimer=2.5, clerkTimer=4.7; // 4.7 ≈ 7/1.5
+let bonusActive=false, bonusTriggered=false;
+let dragLX=0, dragLY=0, md=false;
+let raf;
+const keys={};
+
+// =====================================================================
+// INPUT
+// =====================================================================
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault(); if(AC.state==='suspended')AC.resume();
+  if(gameState!=='playing')return;
+  const t=e.touches[0], r=cv.getBoundingClientRect();
+  dragLX=(t.clientX-r.left)*(W/r.width); dragLY=(t.clientY-r.top)*(H/r.height);
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault(); if(gameState!=='playing')return;
+  const t=e.touches[0], r=cv.getBoundingClientRect();
+  const tx=(t.clientX-r.left)*(W/r.width), ty=(t.clientY-r.top)*(H/r.height);
+  PL.x=clamp(PL.x+(tx-dragLX), PL.w/2, W-PL.w/2);
+  PL.y=clamp(PL.y+(ty-dragLY), PLAY_TOP+PL.h/2, PLAY_BOT-PL.h/2);
+  dragLX=tx; dragLY=ty;
+},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();},{passive:false});
+cv.addEventListener('mousedown',e=>{
+  if(AC.state==='suspended')AC.resume(); if(gameState!=='playing')return;
+  md=true; const r=cv.getBoundingClientRect();
+  dragLX=(e.clientX-r.left)*(W/r.width); dragLY=(e.clientY-r.top)*(H/r.height);
+});
+window.addEventListener('mousemove',e=>{
+  if(!md||gameState!=='playing')return;
+  const r=cv.getBoundingClientRect();
+  const tx=(e.clientX-r.left)*(W/r.width), ty=(e.clientY-r.top)*(H/r.height);
+  PL.x=clamp(PL.x+(tx-dragLX), PL.w/2, W-PL.w/2);
+  PL.y=clamp(PL.y+(ty-dragLY), PLAY_TOP+PL.h/2, PLAY_BOT-PL.h/2);
+  dragLX=tx; dragLY=ty;
+});
+window.addEventListener('mouseup',()=>md=false);
+window.addEventListener('keydown',e=>keys[e.key]=true);
+window.addEventListener('keyup',e=>keys[e.key]=false);
+
+// =====================================================================
+// COLLISION
+// =====================================================================
+function pushApart(a,b){
+  const dx=a.x-b.x, dy=a.y-b.y, dd=Math.hypot(dx,dy)||1;
+  const minD=(a.w+b.w)/2*0.7, push=minD-dd;
+  if(push>0){
+    const nx=dx/dd, ny=dy/dd;
+    a.x+=nx*push*0.5; a.y+=ny*push*0.5;
+    b.x-=nx*push*0.5; b.y-=ny*push*0.5;
+    if(a.bt<=0&&b.bt<=0){
+      sndBump();
+      spawnEff((a.x+b.x)/2,(a.y+b.y)/2-20,'ドン！','miss');
+      a.bt=0.5; b.bt=0.5;
+    }
+  }
+}
+
+// =====================================================================
+// DISCOUNT
+// =====================================================================
+function triggerDiscount(){
+  const av=items.filter(i=>!i.grabbed&&!i.discount);
+  if(!av.length)return;
+  // In bonus time, trigger more items at once
+  const base = bonusActive ? 3 : 1;
+  const num=base+~~(Math.random()*3);
+  shuffle(av).slice(0,num).forEach(item=>{
+    item.discount=true;
+    item.pct=[20,30,50,70][~~(Math.random()*4)];
+    item.timer=5+Math.random()*4;
+  });
+  sndDiscount();
+  spawnEff(W/2, PLAY_TOP+50+(bonusActive?28:0), bonusActive?'ボーナス割引！':'タイムセール！','big');
+}
+
+// =====================================================================
+// CLERK RESTOCK  (frequency ×1.5 → clerkTimer base = ~4.7s instead of 7s)
+// =====================================================================
+function triggerRestock(){
+  const rowCounts={};
+  SHELF_ROWS.forEach(r=>rowCounts[r]=0);
+  items.forEach(i=>{
+    if(!i.grabbed){
+      const r=SHELF_ROWS.find(r=>Math.abs(i.y-(r-24))<22);
+      if(r!==undefined) rowCounts[r]++;
+    }
+  });
+  const sparse=SHELF_ROWS.filter(r=>rowCounts[r]<4);
+  if(!sparse.length) return;
+  const row=sparse[~~(Math.random()*sparse.length)];
+  clerk.state='walking';
+  clerk.target={rowY:row, tx:SHELF_L+20+Math.random()*(SHELF_W-40)};
+}
+
+function doRestock(rowY){
+  const prod=PRODS[~~(Math.random()*PRODS.length)];
+  // In bonus time: restocked items automatically get a discount sticker!
+  const disc = bonusActive;
+  const pct  = bonusActive ? [30,50,70][~~(Math.random()*3)] : 0;
+  items.push({
+    id:itemId++, prod, x:clerk.x, y:rowY-24,
+    discount:disc, pct:pct, timer:disc?6:0, grabbed:false
+  });
+  if(bonusActive){ sndBonusRestock(); spawnEff(clerk.x,rowY-50,'🌟ボーナス品出し！','bonus'); }
+  else{ sndRestock(); spawnEff(clerk.x,rowY-50,'品出し！','ok'); }
+}
+
+// =====================================================================
+// CHECKOUT
+// =====================================================================
+function doCheckout(){
+  if(PL.basket.length===0){ sndMiss(); spawnEff(REG_X,REG_Y-20,'カゴが空！','miss'); return; }
+  let save=0;
+  PL.basket.forEach(it=>save+=Math.floor(it.prod.price*it.pct/100));
+  totalSave+=save; checkouts++; PL.basket=[];
+  document.getElementById('coTxt').innerHTML=`精算完了！<br>¥${save.toLocaleString()}お得！`;
+  const el=document.getElementById('coFlash');
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  setTimeout(()=>el.classList.remove('go'),1700);
+  spawnParticles(REG_X,REG_Y,'#ffe600'); spawnParticles(W/2,H/2,'#ff4488');
+  spawnEff(REG_X-40,REG_Y-50,`¥${save.toLocaleString()}お得！`,'big');
+  sndCheckout(); updateHUD();
+  items.forEach(i=>{ if(i.grabbed){ i.grabbed=false; i.discount=false; i.pct=0; } });
+}
+
+// =====================================================================
+// EFFECTS
+// =====================================================================
+function spawnEff(x,y,txt,type){
+  const el=document.createElement('div');
+  el.className=`eff eff-${type}`; el.textContent=txt;
+  el.style.left=(x-60)+'px'; el.style.top=y+'px';
+  wrap.appendChild(el); setTimeout(()=>el.remove(),960);
+}
+function spawnParticles(x,y,col){
+  for(let i=0;i<14;i++){
+    const p=document.createElement('div'); p.className='pt';
+    const a=(i/14)*Math.PI*2, r=30+Math.random()*50;
+    p.style.setProperty('--tx',Math.cos(a)*r+'px');
+    p.style.setProperty('--ty',Math.sin(a)*r-10+'px');
+    p.style.setProperty('--d',(0.4+Math.random()*0.4)+'s');
+    p.style.left=x+'px'; p.style.top=y+'px';
+    p.style.width=p.style.height=(4+~~(Math.random()*6))+'px';
+    p.style.background=[col,'#ffe600','#fff','#ff2d78'][~~(Math.random()*4)];
+    wrap.appendChild(p); setTimeout(()=>p.remove(),900);
+  }
+}
+
+// =====================================================================
+// HUD
+// =====================================================================
+function updateHUD(){
+  document.getElementById('hdSave').textContent='¥'+totalSave.toLocaleString();
+  const pct=(PL.basket.length/PL.maxBasket)*100;
+  const f=document.getElementById('bFill');
+  f.style.width=pct+'%';
+  f.className='basket-fill'+(PL.basket.length>=PL.maxBasket?' full':'');
+  document.getElementById('bCnt').textContent=PL.basket.length+'/'+PL.maxBasket;
+}
+function updateTimerHUD(){
+  const el=document.getElementById('hdTime');
+  el.innerHTML='TIME<br>'+~~gameTime;
+  el.className='hud-timer'+(gameTime<=10?' urgent':'');
+}
+function activateBonus(){
+  bonusActive=true;
+  // HUD panic
+  document.getElementById('hud').classList.add('panic');
+  document.getElementById('mqBar').classList.add('panic');
+  document.getElementById('mqTxt').classList.add('fast');
+  document.getElementById('bonusBanner').classList.add('show');
+  // Screen flash
+  const sf=document.getElementById('screenFlash');
+  sf.classList.add('flash'); setTimeout(()=>sf.classList.remove('flash'),300);
+  // Marquee text update
+  document.getElementById('mqTxt').textContent='🎉 ボーナスタイム！品出し割引まつり！急いでGET！残り10秒！🎉';
+  // Trigger heavy discount + rapid restock
+  clerkTimer=0;
+  discountTimer=0;
+  startPanicBGM();
+}
+
+// =====================================================================
+// NPC SHOPPER  (speed ×1.5 → base 87 and 66 instead of 58 and 44)
+// =====================================================================
+function initShoppers(){
+  shoppers=[
+    {x:200,y:PLAY_TOP+80, w:26,h:42, speed:87, target:null, gt:0, wf:0,wt:0,bt:0, col:'#44aaff',id:'A'},
+    {x:300,y:PLAY_TOP+350,w:26,h:42, speed:66, target:null, gt:0, wf:0,wt:0,bt:0, col:'#ff8844',id:'B'},
+  ];
+}
+function updateShopper(s,dt){
+  s.bt=Math.max(0,s.bt-dt);
+  s.wt+=dt; if(s.wt>0.12){s.wf=(s.wf+1)%4;s.wt=0;}
+  if(!s.target){
+    const d=items.filter(i=>i.discount&&!i.grabbed);
+    if(d.length) s.target=d[~~(Math.random()*d.length)];
+  }
+  if(s.target&&(s.target.grabbed||!s.target.discount)) s.target=null;
+  if(s.target){
+    const dx=s.target.x-s.x, dy=s.target.y-s.y, d=Math.hypot(dx,dy)||1;
+    const spd = bonusActive ? s.speed*1.4 : s.speed; // even faster in bonus time
+    if(d>14){ s.x+=dx/d*spd*dt; s.y+=dy/d*spd*dt; }
+    else{
+      s.gt-=dt;
+      if(s.gt<=0){ s.gt=0.4; if(!s.target.grabbed){ s.target.grabbed=true; spawnEff(s.x,s.y-24,'さらわれた！','miss'); sndMiss(); s.target=null; } }
+    }
+  } else {
+    const spd = bonusActive ? s.speed*1.4 : s.speed;
+    s.x+=Math.sin(Date.now()*0.001+(s.id==='A'?0:3))*spd*0.3*dt;
+    s.y+=Math.cos(Date.now()*0.0013+(s.id==='A'?0:3))*spd*0.3*dt;
+  }
+  s.x=clamp(s.x,s.w/2,W-s.w/2); s.y=clamp(s.y,PLAY_TOP+s.h/2,PLAY_BOT-s.h/2);
+}
+
+// =====================================================================
+// CLERK
+// =====================================================================
+function initClerk(){
+  clerk={x:W/2,y:PLAY_TOP+200,w:26,h:44,speed:52,state:'idle',target:null,st:0,wf:0,wt:0,bt:0};
+}
+function updateClerk(c,dt){
+  c.bt=Math.max(0,c.bt-dt);
+  c.wt+=dt; if(c.wt>0.18){c.wf=(c.wf+1)%4;c.wt=0;}
+  if(c.state==='idle') return;
+  if(c.state==='walking'&&c.target){
+    const dx=c.target.tx-c.x, dy=c.target.rowY-30-c.y, d=Math.hypot(dx,dy)||1;
+    const spd = bonusActive ? c.speed*1.8 : c.speed;
+    if(d>14){ c.x+=dx/d*spd*dt; c.y+=dy/d*spd*dt; }
+    else{ c.state='stocking'; c.st = bonusActive ? 0.6 : 1.3; }
+  } else if(c.state==='stocking'){
+    c.st-=dt;
+    if(c.st<=0){ doRestock(c.target.rowY); c.state='idle'; c.target=null; }
+  }
+  c.x=clamp(c.x,c.w/2,W-c.w/2); c.y=clamp(c.y,PLAY_TOP+c.h/2,PLAY_BOT-c.h/2);
+}
+
+// =====================================================================
+// DRAWING
+// =====================================================================
+function drawBG(){
+  // Warm supermarket floor
+  const fl=ctx.createLinearGradient(0,PLAY_TOP,0,PLAY_BOT);
+  if(bonusActive){
+    const pulse=0.5+0.5*Math.sin(Date.now()*0.01);
+    fl.addColorStop(0,`rgba(255,${~~(240+15*pulse)},200,1)`);
+    fl.addColorStop(1,`rgba(255,${~~(200+15*pulse)},150,1)`);
+  } else {
+    fl.addColorStop(0,'#f8f0dc'); fl.addColorStop(1,'#e8d4a8');
+  }
+  ctx.fillStyle=fl; ctx.fillRect(0,PLAY_TOP,W,PLAY_H);
+
+  // Tile grid
+  const ts=32;
+  for(let fy=PLAY_TOP;fy<PLAY_BOT;fy+=ts){
+    for(let fx=0;fx<W;fx+=ts){
+      const ev=((fx/ts)+(fy/ts))%2===0;
+      ctx.fillStyle=ev?'rgba(255,255,255,0.22)':'rgba(0,0,0,0.05)';
+      ctx.fillRect(fx,fy,ts,ts);
+    }
+  }
+  ctx.strokeStyle='rgba(170,140,90,0.22)'; ctx.lineWidth=1;
+  for(let fx=0;fx<=W;fx+=ts){ctx.beginPath();ctx.moveTo(fx,PLAY_TOP);ctx.lineTo(fx,PLAY_BOT);ctx.stroke();}
+  for(let fy=PLAY_TOP;fy<=PLAY_BOT;fy+=ts){ctx.beginPath();ctx.moveTo(0,fy);ctx.lineTo(W,fy);ctx.stroke();}
+
+  // Ceiling
+  ctx.fillStyle=bonusActive?'#fff0c0':'#fffbee'; ctx.fillRect(0,PLAY_TOP,W,16);
+  for(let lx=35;lx<W;lx+=80){
+    const lc=bonusActive?`rgba(255,230,${~~(100+100*Math.sin(Date.now()*0.01+lx))},0.98)`:'rgba(255,255,200,0.95)';
+    ctx.fillStyle=lc; ctx.fillRect(lx,PLAY_TOP+2,52,8);
+    ctx.fillStyle='rgba(255,255,200,0.12)'; ctx.fillRect(lx-5,PLAY_TOP,62,16);
+  }
+  ctx.fillStyle=bonusActive?'#ff8800':'#c8a055'; ctx.fillRect(0,PLAY_TOP+15,W,3);
+
+  // Wall gradient above each shelf
+  SHELF_ROWS.forEach(ry=>{
+    const wg=ctx.createLinearGradient(0,ry-50,0,ry-10);
+    wg.addColorStop(0,'rgba(200,170,120,0.3)'); wg.addColorStop(1,'rgba(200,170,120,0)');
+    ctx.fillStyle=wg; ctx.fillRect(0,ry-50,W,40);
+  });
+}
+
+function drawShelf(rowY){
+  const x=SHELF_L, w=SHELF_W;
+  const wg=ctx.createLinearGradient(x,rowY-50,x+w,rowY);
+  wg.addColorStop(0,'#d4a86a'); wg.addColorStop(0.5,'#c09050'); wg.addColorStop(1,'#b07840');
+  ctx.fillStyle=wg; ctx.fillRect(x,rowY-50,w,58);
+  ctx.strokeStyle='rgba(100,60,20,0.12)'; ctx.lineWidth=1;
+  for(let gx=x;gx<x+w;gx+=9){ctx.beginPath();ctx.moveTo(gx,rowY-50);ctx.lineTo(gx,rowY+8);ctx.stroke();}
+  const pg=ctx.createLinearGradient(0,rowY-50,0,rowY-44);
+  pg.addColorStop(0,'#e8c080'); pg.addColorStop(1,'#b08040');
+  ctx.fillStyle=pg; ctx.fillRect(x,rowY-50,w,7);
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(x,rowY-50,w,2);
+  ctx.fillStyle='#8a6028'; ctx.fillRect(x,rowY,w,7);
+  ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(x,rowY,w,2);
+  ctx.fillStyle='#e8e0d0'; ctx.fillRect(x,rowY-2,w,4);
+  ctx.fillStyle='#7a5020';
+  ctx.fillRect(x,rowY-50,6,57); ctx.fillRect(x+w-6,rowY-50,6,57);
+}
+
+function drawProduct(item){
+  const px=~~item.x, py=~~item.y;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fillRect(px-12,py+12,26,4);
+  ctx.fillStyle='#fffaf2'; ctx.fillRect(px-12,py-12,26,26);
+  const bg=ctx.createLinearGradient(px-12,py-12,px-12,py+14);
+  bg.addColorStop(0,'rgba(255,255,255,0.5)'); bg.addColorStop(1,'rgba(0,0,0,0.05)');
+  ctx.fillStyle=bg; ctx.fillRect(px-12,py-12,26,26);
+  ctx.strokeStyle=item.discount?'#ff2244':'#ccbbaa';
+  ctx.lineWidth=item.discount?1.5:1; ctx.strokeRect(px-12,py-12,26,26);
+  ctx.font='15px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(item.prod.emoji, px, py);
+
+  if(item.discount){
+    const sx=px+8, sy=py-8;
+    // Bonus time: bigger, golden sticker
+    const stickerR = bonusActive ? 11 : 9;
+    const stickerColor = bonusActive ? '#ff8800' : '#ff2244';
+    ctx.shadowColor='rgba(0,0,0,0.3)'; ctx.shadowBlur=3;
+    ctx.beginPath(); ctx.arc(sx,sy,stickerR,0,Math.PI*2);
+    ctx.fillStyle=stickerColor; ctx.fill(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(sx-2,sy-3,stickerR*0.4,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(sx,sy,stickerR,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.font=`bold ${bonusActive?7:6}px "DotGothic16",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(item.pct+'%',sx,sy-2);
+    ctx.font=`bold ${bonusActive?5:4}px "DotGothic16",monospace`;
+    ctx.fillText('OFF',sx,sy+4);
+    // Pulse outline
+    const alpha=0.3+0.7*Math.abs(Math.sin(Date.now()*0.007));
+    ctx.strokeStyle=`rgba(${bonusActive?'255,136,0':'255,34,68'},${alpha})`;
+    ctx.lineWidth=bonusActive?3:2; ctx.strokeRect(px-13,py-13,28,28);
+    // Timer bar
+    const tw=Math.max(0,(item.timer/9)*26);
+    ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(px-12,py+13,26,3);
+    ctx.fillStyle=bonusActive?'#ffaa00':(item.timer>3?'#44cc44':'#ff4444');
+    ctx.fillRect(px-12,py+13,tw,3);
+  }
+  ctx.restore();
+}
+
+function drawRegister(){
+  const x=REG_X-28, y=REG_Y-32;
+  ctx.save();
+  const cg=ctx.createLinearGradient(x,y+22,x,y+54);
+  cg.addColorStop(0,'#e8d8b0'); cg.addColorStop(1,'#c8a868');
+  ctx.fillStyle=cg; ctx.fillRect(x,y+22,58,32);
+  ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fillRect(x,y+22,58,4);
+  ctx.fillStyle='#a08050'; ctx.fillRect(x,y+50,58,4);
+  const rg=ctx.createLinearGradient(x+8,y,x+8,y+24);
+  rg.addColorStop(0,'#e0e0e0'); rg.addColorStop(1,'#c0c0c0');
+  ctx.fillStyle=rg; ctx.fillRect(x+8,y,42,24);
+  ctx.fillStyle='#b0b0b0'; ctx.fillRect(x+8,y,42,3);
+  ctx.fillStyle='#44ff88'; ctx.fillRect(x+12,y+4,22,12);
+  ctx.fillStyle='#00aa44'; ctx.font='7px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText('OPEN',x+14,y+6);
+  [[x+36,y+5,'#ff4444'],[x+42,y+5,'#44aaff'],[x+36,y+12,'#ffaa00'],[x+42,y+12,'#88ee44']].forEach(([bx,by,bc])=>{ctx.fillStyle=bc;ctx.fillRect(bx,by,4,4);});
+  const glow=10+6*Math.sin(Date.now()*0.005);
+  ctx.shadowColor=bonusActive?'#ff8800':'#ffe600'; ctx.shadowBlur=glow;
+  ctx.strokeStyle=`rgba(${bonusActive?'255,136,0':'255,230,0'},0.5)`; ctx.lineWidth=1.5; ctx.strokeRect(x,y,58,54); ctx.shadowBlur=0;
+  ctx.fillStyle=bonusActive?'#ff6600':'#ee3355'; ctx.font='8px "Press Start 2P",monospace'; ctx.textAlign='center';
+  ctx.fillText('レジ',REG_X,y-6);
+  if(PL.basket.length>=PL.maxBasket){
+    const a=0.5+0.5*Math.sin(Date.now()*0.01);
+    ctx.fillStyle=`rgba(255,230,0,${a})`; ctx.font='9px "Press Start 2P",monospace'; ctx.textAlign='center';
+    ctx.fillText('← ここ！',REG_X-10,y-20);
+  }
+  ctx.restore();
+}
+
+function drawPlayer(){
+  const x=~~PL.x, y=~~PL.y, wf=PL.wf, bump=PL.bt>0;
+  ctx.save();
+  if(bump){ctx.translate(x,y);ctx.rotate(Math.sin(Date.now()*0.05)*0.18);}
+  else ctx.translate(x,y);
+  const S=1, lo=[0,4,0,-4][wf%4];
+  ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.beginPath();ctx.ellipse(6,27,13,3,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#3355bb'; ctx.fillRect(-6*S,14*S,8*S,14*S); ctx.fillRect(4*S,14*S+lo,8*S,14*S);
+  ctx.fillStyle='#222'; ctx.fillRect(-7*S,27*S,9*S,4*S); ctx.fillRect(4*S,27*S+lo,9*S,4*S);
+  ctx.fillStyle='#ee6688'; ctx.fillRect(-8*S,-4*S,16*S,20*S);
+  ctx.fillStyle='#fff8e0'; ctx.fillRect(-6*S,-2*S,12*S,16*S);
+  ctx.fillStyle='#ff8800'; ctx.fillRect(-6*S,-2*S,12*S,3*S);
+  const ao=[0,-4,0,4][wf%4];
+  ctx.fillStyle='#ffc8aa'; ctx.fillRect(-13*S,0+ao,6*S,12*S); ctx.fillRect(8*S,0-ao,6*S,12*S);
+  // Cart
+  ctx.fillStyle='#cc8800'; ctx.fillRect(11*S,2*S,16*S,18*S);
+  ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.fillRect(11*S,2*S,16*S,6*S);
+  ctx.strokeStyle='#aa6600'; ctx.lineWidth=1; ctx.strokeRect(11*S,2*S,16*S,18*S);
+  if(PL.basket.length>0){
+    ctx.fillStyle='#ffee88'; ctx.fillRect(13*S,5*S,12*S,12*S);
+    ctx.font='9px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(PL.basket[PL.basket.length-1].prod.emoji,19*S,11*S);
+  }
+  ctx.fillStyle='#555'; ctx.fillRect(12*S,19*S,4*S,4*S); ctx.fillRect(21*S,19*S,4*S,4*S);
+  ctx.fillStyle='#ffc8aa'; ctx.fillRect(-7*S,-18*S,14*S,14*S);
+  ctx.fillStyle='#333'; ctx.fillRect(-7*S,-18*S,14*S,5*S); ctx.fillRect(-7*S,-13*S,3*S,9*S);
+  ctx.fillStyle='#000'; ctx.fillRect(-4*S,-12*S,2*S,3*S); ctx.fillRect(2*S,-12*S,2*S,3*S);
+  ctx.fillStyle='#fff'; ctx.fillRect(-3*S,-12*S,1*S,1*S); ctx.fillRect(3*S,-12*S,1*S,1*S);
+  ctx.fillStyle='#cc4466'; ctx.fillRect(-3*S,-7*S,7*S,2*S);
+  ctx.restore();
+}
+
+function drawShopper(s){
+  const x=~~s.x, y=~~s.y, wf=s.wf, col=s.col, bump=s.bt>0;
+  ctx.save();
+  if(bump){ctx.translate(x,y);ctx.rotate(Math.sin(Date.now()*0.05)*0.18);}
+  else ctx.translate(x,y);
+  const S=1, lo=[0,4,0,-4][wf%4];
+  ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.beginPath();ctx.ellipse(2,25,11,3,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#555'; ctx.fillRect(-5*S,14*S,8*S,13*S); ctx.fillRect(4*S,14*S+lo,8*S,13*S);
+  ctx.fillStyle='#333'; ctx.fillRect(-6*S,26*S,9*S,4*S); ctx.fillRect(4*S,26*S+lo,9*S,4*S);
+  ctx.fillStyle=col; ctx.fillRect(-8*S,-4*S,16*S,20*S);
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  ctx.fillRect(-6*S,-2*S,3*S,16*S); ctx.fillRect(-1*S,-2*S,3*S,16*S); ctx.fillRect(4*S,-2*S,3*S,16*S);
+  const ao=[0,-3,0,3][wf%4];
+  ctx.fillStyle='#ffd0a0'; ctx.fillRect(-13*S,0+ao,6*S,11*S); ctx.fillRect(8*S,0-ao,6*S,11*S);
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fillRect(-16*S,4*S,8*S,10*S);
+  ctx.strokeStyle=col; ctx.lineWidth=1; ctx.strokeRect(-16*S,4*S,8*S,10*S);
+  ctx.fillStyle='#ffd0a0'; ctx.fillRect(-6*S,-18*S,12*S,14*S);
+  ctx.fillStyle='#5c3a1e'; ctx.fillRect(-6*S,-18*S,12*S,5*S);
+  ctx.fillStyle='#000'; ctx.fillRect(-3*S,-12*S,2*S,3*S); ctx.fillRect(2*S,-12*S,2*S,3*S);
+  ctx.fillStyle='#aa4444'; ctx.fillRect(-2*S,-7*S,5*S,2*S);
+  // Speed lines in bonus time
+  if(bonusActive){
+    ctx.strokeStyle='rgba(255,200,0,0.5)'; ctx.lineWidth=1;
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-18-i*4,(-10+i*8)*S);ctx.lineTo(-10-i*4,(-10+i*8)*S);ctx.stroke();}
+  }
+  ctx.restore();
+}
+
+function drawClerk(c){
+  const x=~~c.x, y=~~c.y, wf=c.wf, bump=c.bt>0;
+  ctx.save();
+  if(bump){ctx.translate(x,y);ctx.rotate(Math.sin(Date.now()*0.05)*0.18);}
+  else ctx.translate(x,y);
+  const S=1, lo=[0,4,0,-4][wf%4];
+  ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.beginPath();ctx.ellipse(2,27,12,3,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#226622'; ctx.fillRect(-5*S,14*S,8*S,14*S); ctx.fillRect(4*S,14*S+lo,8*S,14*S);
+  ctx.fillStyle='#111'; ctx.fillRect(-6*S,27*S,9*S,4*S); ctx.fillRect(4*S,27*S+lo,9*S,4*S);
+  ctx.fillStyle='#33aa33'; ctx.fillRect(-8*S,-4*S,16*S,20*S);
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.fillRect(-6*S,-2*S,3*S,16*S); ctx.fillRect(0,-2*S,3*S,16*S); ctx.fillRect(5*S,-2*S,3*S,16*S);
+  ctx.fillStyle='#ffcc99'; ctx.fillRect(-13*S,-1*S,6*S,11*S); ctx.fillRect(8*S,-1*S,6*S,11*S);
+  if(c.state==='walking'||c.state==='stocking'){
+    const boxCol = bonusActive ? '#ffcc44' : '#c8a860';
+    ctx.fillStyle=boxCol; ctx.fillRect(-14*S,-10*S,18*S,14*S);
+    ctx.strokeStyle=bonusActive?'#ff8800':'#a07840'; ctx.lineWidth=1; ctx.strokeRect(-14*S,-10*S,18*S,14*S);
+    ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fillRect(-14*S,-10*S,18*S,4*S);
+    if(c.state==='stocking'){
+      const sa=Math.sin(Date.now()*0.02);
+      ctx.fillStyle=`rgba(255,${bonusActive?180:230},0,${0.3+sa*0.3})`;
+      ctx.fillRect(-14*S,-10*S,18*S,14*S);
+    }
+  }
+  ctx.fillStyle='#ffcc99'; ctx.fillRect(-6*S,-18*S,12*S,14*S);
+  ctx.fillStyle='#226622'; ctx.fillRect(-8*S,-22*S,16*S,6*S); ctx.fillRect(-6*S,-18*S,12*S,4*S);
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(-6*S,-22*S,16*S,2*S);
+  ctx.fillStyle='#000'; ctx.fillRect(-3*S,-12*S,2*S,3*S); ctx.fillRect(2*S,-12*S,2*S,3*S);
+  ctx.fillStyle='#aa6644'; ctx.fillRect(-2*S,-7*S,5*S,2*S);
+  ctx.restore();
+}
+
+// =====================================================================
+// GAME UPDATE
+// =====================================================================
+function updateGame(dt){
+  gameTime-=dt;
+  if(gameTime<=0){ gameTime=0; endGame(); return; }
+  updateTimerHUD();
+
+  // Trigger bonus mode at exactly 10 seconds remaining
+  if(!bonusTriggered && gameTime<=10){
+    bonusTriggered=true;
+    activateBonus();
+    spawnEff(W/2, PLAY_TOP+100,'🎉 ボーナスタイム！','bonus');
+    spawnEff(W/2, PLAY_TOP+130,'品出し割引まつり！','big');
+  }
+
+  // Keyboard
+  const KS=190;
+  if(keys['ArrowUp']||keys['w'])   PL.y-=KS*dt;
+  if(keys['ArrowDown']||keys['s']) PL.y+=KS*dt;
+  if(keys['ArrowLeft']||keys['a']) PL.x-=KS*dt;
+  if(keys['ArrowRight']||keys['d'])PL.x+=KS*dt;
+  PL.x=clamp(PL.x,PL.w/2,W-PL.w/2); PL.y=clamp(PL.y,PLAY_TOP+PL.h/2,PLAY_BOT-PL.h/2);
+  PL.wt+=dt; if(PL.wt>0.15){PL.wf=(PL.wf+1)%4;PL.wt=0;}
+  PL.bt=Math.max(0,PL.bt-dt);
+
+  // Auto-grab discount items on proximity
+  if(PL.basket.length<PL.maxBasket){
+    items.forEach(item=>{
+      if(item.grabbed||!item.discount) return;
+      if(dist2({x:PL.x,y:PL.y},{x:item.x,y:item.y})<28){
+        item.grabbed=true;
+        PL.basket.push({prod:item.prod, pct:item.pct});
+        const sv=Math.floor(item.prod.price*item.pct/100);
+        spawnEff(PL.x,PL.y-30,`${item.pct}%OFF！`,'big');
+        if(sv>0) spawnEff(PL.x,PL.y-10,`¥${sv}お得！`,'ok');
+        spawnParticles(item.x,item.y,bonusActive?'#ff8800':'#ffe600');
+        sndPickup(); updateHUD();
+      }
+    });
+  }
+  // Auto-checkout near register
+  if(PL.basket.length>=PL.maxBasket && dist2(PL,{x:REG_X,y:REG_Y})<50) doCheckout();
+  if(PL.basket.length>0 && PL.basket.length<PL.maxBasket && dist2(PL,{x:REG_X,y:REG_Y})<30) doCheckout();
+
+  // Discount events (faster in bonus time)
+  discountTimer-=dt;
+  if(discountTimer<=0){
+    discountTimer = bonusActive ? 1.5+Math.random()*1.5 : 4+Math.random()*5;
+    triggerDiscount();
+  }
+  items.forEach(i=>{ if(i.discount){ i.timer-=dt; if(i.timer<=0){i.discount=false;i.pct=0;} } });
+
+  // Shoppers
+  shoppers.forEach(s=>updateShopper(s,dt));
+
+  // Clerk – base interval 4.7s (= 7/1.5), even faster during bonus
+  clerkTimer-=dt;
+  if(clerkTimer<=0 && clerk.state==='idle'){
+    clerkTimer = bonusActive ? 1.2+Math.random()*1.5 : 3.2+Math.random()*3;
+    triggerRestock();
+  }
+  updateClerk(clerk,dt);
+
+  // Collision
+  const all=[PL,...shoppers,clerk];
+  for(let i=0;i<all.length;i++) for(let j=i+1;j<all.length;j++) pushApart(all[i],all[j]);
+  all.forEach(c=>{ c.x=clamp(c.x,c.w/2,W-c.w/2); c.y=clamp(c.y,PLAY_TOP+c.h/2,PLAY_BOT-c.h/2); });
+}
+
+// =====================================================================
+// RENDER
+// =====================================================================
+function renderGame(){
+  ctx.clearRect(0,0,W,H);
+  drawBG();
+  SHELF_ROWS.forEach(r=>drawShelf(r));
+  items.forEach(i=>{ if(!i.grabbed) drawProduct(i); });
+  drawRegister();
+  shoppers.forEach(s=>drawShopper(s));
+  drawClerk(clerk);
+  drawPlayer();
+  // Full cart indicator
+  if(PL.basket.length>=PL.maxBasket){
+    ctx.save(); ctx.font='15px serif'; ctx.textAlign='center';
+    ctx.globalAlpha=0.6+0.4*Math.sin(Date.now()*0.009);
+    ctx.fillText('→🛒',PL.x+22,PL.y-38);
+    ctx.globalAlpha=1; ctx.restore();
+  }
+  // Bonus time edge glow
+  if(bonusActive){
+    const alpha=0.2+0.2*Math.sin(Date.now()*0.015);
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,150,0,${alpha})`;
+    for(let i=0;i<3;i++){ ctx.lineWidth=(3-i)*4; ctx.strokeRect(0,0,W,H); }
+    ctx.restore();
+  }
+}
+
+function renderTitle(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#fffde0'); g.addColorStop(0.6,'#d4f0b0'); g.addColorStop(1,'#a8d888');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const ts=36;
+  for(let fy=H-240;fy<H;fy+=ts) for(let fx=0;fx<W;fx+=ts){
+    const ev=((fx/ts)+(fy/ts))%2===0;
+    ctx.fillStyle=ev?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.06)'; ctx.fillRect(fx,fy,ts,ts);
+  }
+  drawShelf(H-90);
+  [{emoji:'🍺',x:80,y:H-124,disc:true,pct:30},{emoji:'🍫',x:155,y:H-124,disc:false},{emoji:'🥤',x:230,y:H-124,disc:true,pct:50},{emoji:'🍜',x:305,y:H-124,disc:false}].forEach(p=>{
+    ctx.fillStyle='#fffaf2'; ctx.fillRect(p.x-12,p.y-12,26,26);
+    ctx.strokeStyle=p.disc?'#ff2244':'#ccbbaa'; ctx.lineWidth=p.disc?1.5:1; ctx.strokeRect(p.x-12,p.y-12,26,26);
+    ctx.font='16px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.emoji,p.x,p.y);
+    if(p.disc){
+      ctx.beginPath(); ctx.arc(p.x+8,p.y-8,9,0,Math.PI*2); ctx.fillStyle='#ff2244'; ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x+8,p.y-8,9,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.fillStyle='#fff'; ctx.font='bold 6px DotGothic16,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(p.pct+'%',p.x+8,p.y-11); ctx.font='bold 5px DotGothic16,monospace'; ctx.fillText('OFF',p.x+8,p.y-5);
+    }
+  });
+}
+
+// =====================================================================
+// GAME OVER
+// =====================================================================
+function endGame(){
+  gameState='gameover';
+  stopPanicBGM();
+  cancelAnimationFrame(raf);
+  const rank=totalSave>=6000?'★★★ 節約の達人！':totalSave>=3000?'★★ お得上手！':'★ もっと頑張れ！';
+  document.getElementById('goTxt').innerHTML=`節約合計: ¥${totalSave.toLocaleString()}<br>精算回数: ${checkouts}回<br>${rank}`;
+  document.getElementById('goScreen').style.display='flex';
+}
+
+// =====================================================================
+// START GAME
+// =====================================================================
+function startGame(){
+  document.getElementById('titleScreen').style.display='none';
+  document.getElementById('goScreen').style.display='none';
+  document.getElementById('hud').classList.remove('panic');
+  document.getElementById('mqBar').classList.remove('panic');
+  document.getElementById('mqTxt').classList.remove('fast');
+  document.getElementById('bonusBanner').classList.remove('show');
+  document.getElementById('mqTxt').textContent='★ 本日のタイムセール開催中！★ 割引シールをGETせよ！★ 買い物客に負けるな！★ 店員さんが品出し中！★';
+  stopPanicBGM();
+  gameState='playing'; totalSave=0; checkouts=0; gameTime=90;
+  discountTimer=2.5; clerkTimer=4.7;
+  bonusActive=false; bonusTriggered=false;
+  initItems(); initShoppers(); initClerk();
+  PL.basket=[]; PL.x=60; PL.y=PLAY_TOP+PLAY_H/2; PL.wf=0; PL.bt=0;
+  updateHUD(); updateTimerHUD();
+  lastTS=performance.now();
+  raf=requestAnimationFrame(loop);
+}
+
+function loop(ts){
+  const dt=Math.min((ts-lastTS)/1000,0.05); lastTS=ts;
+  if(gameState==='playing'){ updateGame(dt); renderGame(); }
+  else if(gameState==='title') renderTitle();
+  if(gameState==='playing') raf=requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{ AC.resume(); startGame(); });
+document.getElementById('retryBtn').addEventListener('click',()=>{ AC.resume(); startGame(); });
+
+// Boot title loop
+gameState='title';
+(function titleLoop(ts){
+  lastTS=ts; renderTitle();
+  if(gameState==='title') requestAnimationFrame(titleLoop);
+})(performance.now());
+</script>
+
+</body>
+</html>
